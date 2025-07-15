@@ -1,0 +1,83 @@
+name: Reusable Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '18'
+        type: string
+      working-directory:
+        description: 'Working directory'
+        required: false
+        default: '.'
+        type: string
+      cache-dependency-path:
+        description: 'Path to dependency file for caching'
+        required: false
+        default: 'yarn.lock'
+        type: string
+      install-command:
+        description: 'Command to install dependencies'
+        required: false
+        default: 'yarn install --frozen-lockfile'
+        type: string
+      build-command:
+        description: 'Command to build the project'
+        required: false
+        default: 'yarn build'
+        type: string
+      test-command:
+        description: 'Command to run tests'
+        required: false
+        default: 'yarn test'
+        type: string
+      lint-command:
+        description: 'Command to run linting'
+        required: false
+        default: 'yarn lint'
+        type: string
+      skip-tests:
+        description: 'Skip running tests'
+        required: false
+        default: false
+        type: boolean
+      skip-lint:
+        description: 'Skip running linting'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'yarn'
+        cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.cache-dependency-path }}
+        
+    - name: Install dependencies
+      run: ${{ inputs.install-command }}
+      
+    - name: Run linting
+      if: ${{ !inputs.skip-lint }}
+      run: ${{ inputs.lint-command }}
+      
+    - name: Run tests
+      if: ${{ !inputs.skip-tests }}
+      run: ${{ inputs.test-command }}
+      
+    - name: Build project
+      run: ${{ inputs.build-command }}

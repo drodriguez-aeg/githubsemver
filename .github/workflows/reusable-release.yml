@@ -1,0 +1,82 @@
+name: Reusable Semantic Release
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '18'
+        type: string
+      working-directory:
+        description: 'Working directory'
+        required: false
+        default: '.'
+        type: string
+      cache-dependency-path:
+        description: 'Path to dependency file for caching'
+        required: false
+        default: 'yarn.lock'
+        type: string
+      install-command:
+        description: 'Command to install dependencies'
+        required: false
+        default: 'yarn install --frozen-lockfile'
+        type: string
+      build-command:
+        description: 'Command to build before release'
+        required: false
+        default: 'yarn build'
+        type: string
+      release-command:
+        description: 'Command to run semantic release'
+        required: false
+        default: 'npx semantic-release'
+        type: string
+      skip-build:
+        description: 'Skip building before release'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for releases'
+        required: true
+      NPM_TOKEN:
+        description: 'NPM token for publishing'
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'yarn'
+        cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.cache-dependency-path }}
+        
+    - name: Install dependencies
+      run: ${{ inputs.install-command }}
+      
+    - name: Build project
+      if: ${{ !inputs.skip-build }}
+      run: ${{ inputs.build-command }}
+        
+    - name: Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: ${{ inputs.release-command }}

@@ -1,0 +1,15 @@
+name: Example Release using reusable workflow
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  release:
+    uses: your-org/github-semver-workflows/.github/workflows/reusable-release.yml@main
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    with:
+      node-version: '18'
+      build-command: 'npm run build'

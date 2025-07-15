@@ -1,0 +1,16 @@
+name: Example CI using reusable workflow
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    uses: your-org/github-semver-workflows/.github/workflows/reusable-build.yml@main
+    with:
+      node-version: '18'
+      build-command: 'npm run build'
+      test-command: 'npm test'
+      lint-command: 'npm run lint'
