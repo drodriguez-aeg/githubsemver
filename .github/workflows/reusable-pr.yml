@@ -1,0 +1,81 @@
+name: Reusable PR Workflow
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '20'
+        type: string
+      yarn-version:
+        description: 'Yarn version to use'
+        required: false
+        default: '1.22.x'
+        type: string
+      working-directory:
+        description: 'Working directory for the project'
+        required: false
+        default: '.'
+        type: string
+      cache-dependency-path:
+        description: 'Path to dependency file for caching'
+        required: false
+        default: '**/yarn.lock'
+        type: string
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        default: true
+        type: boolean
+      run-lint:
+        description: 'Whether to run linting'
+        required: false
+        default: true
+        type: boolean
+      test-command:
+        description: 'Custom test command to run'
+        required: false
+        default: 'yarn test'
+        type: string
+      lint-command:
+        description: 'Custom lint command to run'
+        required: false
+        default: 'yarn lint'
+        type: string
+
+jobs:
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'yarn'
+          cache-dependency-path: ${{ inputs.cache-dependency-path }}
+          
+      - name: Setup Yarn
+        run: |
+          corepack enable
+          yarn set version ${{ inputs.yarn-version }}
+        working-directory: ${{ inputs.working-directory }}
+        
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: ${{ inputs.working-directory }}
+        
+      - name: Run linting
+        if: ${{ inputs.run-lint == true }}
+        run: ${{ inputs.lint-command }}
+        working-directory: ${{ inputs.working-directory }}
+        
+      - name: Run tests
+        if: ${{ inputs.run-tests == true }}
+        run: ${{ inputs.test-command }}
+        working-directory: ${{ inputs.working-directory }}
