@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/drodriguez-aeg/githubsemver/compare/v1.0.1...v1.1.0) (2025-07-16)
+
+
+### Features
+
+* **add new workflow:** new workflow ([75824c6](https://github.com/drodriguez-aeg/githubsemver/commit/75824c62db6c5a41bce51b1f5e2954cb45cd093a))
+
 ## [1.0.1](https://github.com/drodriguez-aeg/githubsemver/compare/v1.0.0...v1.0.1) (2025-07-16)
 
 
