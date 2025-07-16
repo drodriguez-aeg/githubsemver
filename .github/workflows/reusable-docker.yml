@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       image-name:
-        description: 'Docker image name'
+        description: 'Docker image name change'
         required: true
         type: string
       dockerfile-path:
