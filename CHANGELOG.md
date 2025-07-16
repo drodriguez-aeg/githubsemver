@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/drodriguez-aeg/githubsemver/compare/v1.0.0...v1.0.1) (2025-07-16)
+
+
+### Bug Fixes
+
+* **name:** nam eof input ([da8fcb4](https://github.com/drodriguez-aeg/githubsemver/commit/da8fcb4784329589f1b6757929c097b6308e4dc7))
+
 # 1.0.0 (2025-07-16)
 
 
