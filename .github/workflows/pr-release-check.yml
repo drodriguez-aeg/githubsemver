@@ -1,0 +1,165 @@
+name: PR Release Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, edited]
+
+jobs:
+  check-release:
+    name: Check if PR will trigger release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Install semantic-release dry-run
+        run: yarn add --dev @semantic-release/exec
+      
+      - name: Check if release will be triggered
+        id: release-check
+        run: |
+          # Get the base branch (main) latest commit
+          git fetch origin main
+          BASE_SHA=$(git rev-parse origin/main)
+          
+          # Get commits in this PR
+          COMMITS=$(git log --oneline ${BASE_SHA}..HEAD --pretty=format:"%s")
+          
+          echo "Commits in PR:"
+          echo "$COMMITS"
+          
+          # Check for release-triggering commit types
+          WILL_RELEASE="false"
+          RELEASE_TYPE="none"
+          
+          # Check for breaking changes (major version)
+          if echo "$COMMITS" | grep -E '^(feat|fix|perf|refactor|style|test|docs|chore)(\(.+\))?!:' || echo "$COMMITS" | grep -E 'BREAKING CHANGE'; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="major"
+          # Check for features (minor version)
+          elif echo "$COMMITS" | grep -E '^feat(\(.+\))?:'; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="minor"
+          # Check for fixes (patch version)
+          elif echo "$COMMITS" | grep -E '^fix(\(.+\))?:'; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="patch"
+          # Check for performance improvements (patch version)
+          elif echo "$COMMITS" | grep -E '^perf(\(.+\))?:'; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="patch"
+          fi
+          
+          echo "will_release=$WILL_RELEASE" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          
+          # Try to get the next version using semantic-release in dry-run mode
+          if [ "$WILL_RELEASE" = "true" ]; then
+            echo "Running semantic-release in dry-run mode..."
+            NEXT_VERSION=$(yarn semantic-release --dry-run 2>&1 | grep -o "The next release version is [0-9]\+\.[0-9]\+\.[0-9]\+" | sed 's/The next release version is //' || echo "unknown")
+            echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "next_version=none" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate release comment
+        id: generate-comment
+        run: |
+          if [ "${{ steps.release-check.outputs.will_release }}" = "true" ]; then
+            RELEASE_TYPE="${{ steps.release-check.outputs.release_type }}"
+            NEXT_VERSION="${{ steps.release-check.outputs.next_version }}"
+            
+            case $RELEASE_TYPE in
+              "major")
+                EMOJI="🚀"
+                TYPE_DESC="**Major Release** (breaking changes)"
+                ;;
+              "minor")
+                EMOJI="✨"
+                TYPE_DESC="**Minor Release** (new features)"
+                ;;
+              "patch")
+                EMOJI="🔧"
+                TYPE_DESC="**Patch Release** (bug fixes/improvements)"
+                ;;
+            esac
+            
+            if [ "$NEXT_VERSION" != "unknown" ] && [ "$NEXT_VERSION" != "none" ]; then
+              VERSION_INFO="➡️ **Next version:** \`$NEXT_VERSION\`"
+            else
+              VERSION_INFO="➡️ **Release type:** $RELEASE_TYPE"
+            fi
+            
+            COMMENT="## $EMOJI Release Impact
+          
+          $TYPE_DESC
+          
+          $VERSION_INFO
+          
+          This PR contains commits that will trigger a new release when merged to \`main\`.
+          
+          ### Commit Analysis
+          The following commit types were detected:
+          - **Breaking changes:** $(git log --oneline origin/main..HEAD --pretty=format:\"%s\" | grep -E '^(feat|fix|perf|refactor|style|test|docs|chore)(\(.+\))?!:' | wc -l | xargs)
+          - **Features:** $(git log --oneline origin/main..HEAD --pretty=format:\"%s\" | grep -E '^feat(\(.+\))?:' | wc -l | xargs)
+          - **Fixes:** $(git log --oneline origin/main..HEAD --pretty=format:\"%s\" | grep -E '^fix(\(.+\))?:' | wc -l | xargs)
+          - **Performance:** $(git log --oneline origin/main..HEAD --pretty=format:\"%s\" | grep -E '^perf(\(.+\))?:' | wc -l | xargs)
+          
+          ---
+          *This comment is automatically generated by the release check workflow.*"
+          else
+            COMMENT="## 📋 Release Impact
+          
+          **No Release** - This PR will not trigger a new release.
+          
+          The commits in this PR do not match the conventional commit patterns that trigger releases:
+          - \`feat:\` (minor release)
+          - \`fix:\` (patch release)
+          - \`perf:\` (patch release)
+          - \`BREAKING CHANGE\` or \`!\` suffix (major release)
+          
+          ### Current commits:
+          $(git log --oneline origin/main..HEAD --pretty=format:\"- %s\" | head -10)
+          
+          ---
+          *This comment is automatically generated by the release check workflow.*"
+          fi
+          
+          # Save comment to file for the next step
+          echo "$COMMENT" > comment.md
+      
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Release Impact'
+      
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: comment.md
+          edit-mode: replace

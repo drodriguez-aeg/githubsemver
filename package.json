@@ -35,7 +35,8 @@
     "@semantic-release/github": "^9.2.6",
     "commitizen": "^4.3.0",
     "cz-conventional-changelog": "^3.3.0",
-    "semantic-release": "^22.0.12"
+    "semantic-release": "^22.0.12",
+    "semantic-release-github-pr": "^1.0.0"
   },
   "config": {
     "commitizen": {
