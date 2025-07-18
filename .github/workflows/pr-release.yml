@@ -37,6 +37,4 @@ jobs:
         run: yarn add --dev semantic-release-github-pr
 
       - name: Run semantic-release for PR
-        run: yarn semantic-release --extends ./pr-release.config.js
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release-github-pr
