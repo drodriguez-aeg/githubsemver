@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/drodriguez-aeg/githubsemver/compare/v1.1.0...v1.2.0) (2025-07-18)
+
+
+### Features
+
+* **prere:** asdad ([89d3214](https://github.com/drodriguez-aeg/githubsemver/commit/89d3214f0f566ddd5217eb88b6599c07804a9d10))
+
 # [1.1.0](https://github.com/drodriguez-aeg/githubsemver/compare/v1.0.1...v1.1.0) (2025-07-16)
 
 
