@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version to usx e'
+        description: 'Node.js version to usxe'
         required: false
         default: '20'
         type: string

@@ -1,0 +1,246 @@
+name: Reusable PR Release Check
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: 'lts/*'
+        type: string
+      package-manager:
+        description: 'Package manager to use (npm, yarn, pnpm)'
+        required: false
+        default: 'yarn'
+        type: string
+      working-directory:
+        description: 'Working directory for the project'
+        required: false
+        default: '.'
+        type: string
+      target-branch:
+        description: 'Target branch for releases'
+        required: false
+        default: 'main'
+        type: string
+      cache-dependency-path:
+        description: 'Path to dependency file for caching'
+        required: false
+        default: '**/yarn.lock'
+        type: string
+      semantic-release-config:
+        description: 'Path to semantic-release config file'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  check-release:
+    name: Check if PR will trigger release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: ${{ inputs.cache-dependency-path }}
+      
+      - name: Setup package manager
+        run: |
+          case "${{ inputs.package-manager }}" in
+            "pnpm")
+              corepack enable
+              corepack prepare pnpm@latest --activate
+              ;;
+            "yarn")
+              corepack enable
+              ;;
+          esac
+        working-directory: ${{ inputs.working-directory }}
+      
+      - name: Install dependencies
+        run: |
+          case "${{ inputs.package-manager }}" in
+            "npm")
+              npm ci
+              ;;
+            "yarn")
+              yarn install --frozen-lockfile
+              ;;
+            "pnpm")
+              pnpm install --frozen-lockfile
+              ;;
+          esac
+        working-directory: ${{ inputs.working-directory }}
+      
+      - name: Check if release will be triggered
+        id: release-check
+        run: |
+          # Get the base branch latest commit
+          git fetch origin ${{ inputs.target-branch }}
+          BASE_SHA=$(git rev-parse origin/${{ inputs.target-branch }})
+          
+          # Get commits in this PR
+          COMMITS=$(git log --oneline ${BASE_SHA}..HEAD --pretty=format:"%s")
+          
+          echo "Commits in PR:"
+          echo "$COMMITS"
+          
+          # Check for release-triggering commit types
+          WILL_RELEASE="false"
+          RELEASE_TYPE="none"
+          COMMIT_TYPES=""
+          
+          # Count different commit types
+          BREAKING_COUNT=$(echo "$COMMITS" | grep -E "^(feat|fix|perf|refactor|style|test|docs|chore)(\(.+\))?!:" | wc -l | xargs)
+          BREAKING_BODY_COUNT=$(echo "$COMMITS" | xargs -I {} sh -c 'git log --format="%B" -n 1 $(echo {} | cut -d" " -f1)' | grep -c "BREAKING CHANGE" || echo 0)
+          FEAT_COUNT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | wc -l | xargs)
+          FIX_COUNT=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:" | wc -l | xargs)
+          PERF_COUNT=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | wc -l | xargs)
+          
+          # Determine release type
+          if [ "$BREAKING_COUNT" -gt 0 ] || [ "$BREAKING_BODY_COUNT" -gt 0 ]; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="major"
+          elif [ "$FEAT_COUNT" -gt 0 ]; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="minor"
+          elif [ "$FIX_COUNT" -gt 0 ] || [ "$PERF_COUNT" -gt 0 ]; then
+            WILL_RELEASE="true"
+            RELEASE_TYPE="patch"
+          fi
+          
+          echo "will_release=$WILL_RELEASE" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "breaking_count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
+          echo "breaking_body_count=$BREAKING_BODY_COUNT" >> $GITHUB_OUTPUT
+          echo "feat_count=$FEAT_COUNT" >> $GITHUB_OUTPUT
+          echo "fix_count=$FIX_COUNT" >> $GITHUB_OUTPUT
+          echo "perf_count=$PERF_COUNT" >> $GITHUB_OUTPUT
+          
+          # Try to get the next version using semantic-release in dry-run mode
+          if [ "$WILL_RELEASE" = "true" ]; then
+            echo "Running semantic-release in dry-run mode..."
+            
+            # Set up semantic-release config if provided
+            if [ -n "${{ inputs.semantic-release-config }}" ]; then
+              export SEMANTIC_RELEASE_CONFIG="${{ inputs.semantic-release-config }}"
+            fi
+            
+            # Run semantic-release dry-run
+            case "${{ inputs.package-manager }}" in
+              "npm")
+                NEXT_VERSION=$(npx semantic-release --dry-run --no-ci 2>&1 | grep -o "The next release version is [0-9]\+\.[0-9]\+\.[0-9]\+" | sed 's/The next release version is //' || echo "unknown")
+                ;;
+              "yarn")
+                NEXT_VERSION=$(yarn semantic-release --dry-run --no-ci 2>&1 | grep -o "The next release version is [0-9]\+\.[0-9]\+\.[0-9]\+" | sed 's/The next release version is //' || echo "unknown")
+                ;;
+              "pnpm")
+                NEXT_VERSION=$(pnpm semantic-release --dry-run --no-ci 2>&1 | grep -o "The next release version is [0-9]\+\.[0-9]\+\.[0-9]\+" | sed 's/The next release version is //' || echo "unknown")
+                ;;
+            esac
+            
+            echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "next_version=none" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate release comment
+        id: generate-comment
+        run: |
+          if [ "${{ steps.release-check.outputs.will_release }}" = "true" ]; then
+            RELEASE_TYPE="${{ steps.release-check.outputs.release_type }}"
+            NEXT_VERSION="${{ steps.release-check.outputs.next_version }}"
+            
+            case $RELEASE_TYPE in
+              "major")
+                EMOJI="🚀"
+                TYPE_DESC="**Major Release** (breaking changes)"
+                ;;
+              "minor")
+                EMOJI="✨"
+                TYPE_DESC="**Minor Release** (new features)"
+                ;;
+              "patch")
+                EMOJI="🔧"
+                TYPE_DESC="**Patch Release** (bug fixes/improvements)"
+                ;;
+            esac
+            
+            if [ "$NEXT_VERSION" != "unknown" ] && [ "$NEXT_VERSION" != "none" ]; then
+              VERSION_INFO="➡️ **Next version:** \`$NEXT_VERSION\`"
+            else
+              VERSION_INFO="➡️ **Release type:** $RELEASE_TYPE"
+            fi
+            
+            COMMENT="## $EMOJI Release Impact
+          
+          $TYPE_DESC
+          
+          $VERSION_INFO
+          
+          This PR contains commits that will trigger a new release when merged to \`${{ inputs.target-branch }}\`.
+          
+          ### Commit Analysis
+          The following commit types were detected:
+          - **Breaking changes:** ${{ steps.release-check.outputs.breaking_count }} (suffix \`!\`) + ${{ steps.release-check.outputs.breaking_body_count }} (body)
+          - **Features:** ${{ steps.release-check.outputs.feat_count }}
+          - **Fixes:** ${{ steps.release-check.outputs.fix_count }}
+          - **Performance:** ${{ steps.release-check.outputs.perf_count }}
+          
+          ### Recent commits:
+          $(git log --oneline origin/${{ inputs.target-branch }}..HEAD --pretty=format:\"- %s\" | head -10)
+          
+          ---
+          *This comment is automatically generated by the release check workflow.*"
+          else
+            COMMENT="## 📋 Release Impact
+          
+          **No Release** - This PR will not trigger a new release.
+          
+          The commits in this PR do not match the conventional commit patterns that trigger releases:
+          - \`feat:\` (minor release)
+          - \`fix:\` (patch release)
+          - \`perf:\` (patch release)
+          - \`BREAKING CHANGE\` or \`!\` suffix (major release)
+          
+          ### Current commits:
+          $(git log --oneline origin/${{ inputs.target-branch }}..HEAD --pretty=format:\"- %s\" | head -10)
+          
+          ---
+          *This comment is automatically generated by the release check workflow.*"
+          fi
+          
+          # Save comment to file for the next step
+          echo "$COMMENT" > comment.md
+        working-directory: ${{ inputs.working-directory }}
+      
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Release Impact'
+      
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: comment.md
+          edit-mode: replace

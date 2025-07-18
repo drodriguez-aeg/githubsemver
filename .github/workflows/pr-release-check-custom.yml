@@ -1,0 +1,20 @@
+name: PR Release Check (Custom Configuration)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types: [opened, synchronize, edited]
+
+jobs:
+  check-release:
+    uses: ./.github/workflows/reusable-pr-release-check.yml
+    with:
+      node-version: '18'
+      package-manager: 'yarn'
+      working-directory: '.'
+      target-branch: 'main'
+      cache-dependency-path: '**/yarn.lock'
+      semantic-release-config: ''
+    secrets: inherit

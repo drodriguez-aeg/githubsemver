@@ -3,22 +3,21 @@ name: Release
 on:
   push:
     branches:
-      - main # Or your default branch
+      - main
 
 jobs:
   release:
     name: Create Release
     runs-on: self-hosted
     permissions:
-      contents: write      # To push new tags and releases
-      issues: write        # To comment on issues/PRs
-      pull-requests: write # To comment on issues/PRs
+      contents: write
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # This is important to fetch all history for semantic-release to analyze
           fetch-depth: 0
 
       - name: Set up Node.js
