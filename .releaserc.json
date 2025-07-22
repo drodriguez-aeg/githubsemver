@@ -1,15 +1,13 @@
 {
-  "branches": [
-    "main",
-    "master"
-  ],
+  "branches": "main",
+  "repositoryUrl": "git@github.com:AEG-Presents/.github",
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/changelog",
       {
-        "changelogFile": "CHANGELOG.md"
+        "changelogFile": "docs/CHANGELOG.md"
       }
     ],
     [
@@ -19,26 +17,15 @@
       }
     ],
     [
-      "@semantic-release/github",
-      {
-        "assets": [
-          {
-            "path": "CHANGELOG.md",
-            "label": "Changelog"
-          }
-        ]
-      }
-    ],
-    [
       "@semantic-release/git",
       {
         "assets": [
-          "CHANGELOG.md",
-          "package.json",
-          "yarn.lock"
+          "docs",
+          "package.json"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ]
   ]
 }
+
