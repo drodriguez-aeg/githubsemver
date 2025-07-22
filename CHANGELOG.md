@@ -1,3 +1,11 @@
+# [1.3.0](https://github.com/drodriguez-aeg/githubsemver/compare/v1.2.0...v1.3.0) (2025-07-22)
+
+
+### Features
+
+* **pre-release:** add workflow for release preview comments on pull requests ([179fa8f](https://github.com/drodriguez-aeg/githubsemver/commit/179fa8f301b4dac72e66c0fe4a10d51ffa41193f))
+* **test:** asdads ([99f72f8](https://github.com/drodriguez-aeg/githubsemver/commit/99f72f8ae268bb3e6bc82bc12153bb658432cb4a))
+
 # [1.2.0](https://github.com/drodriguez-aeg/githubsemver/compare/v1.1.0...v1.2.0) (2025-07-18)
 
 
